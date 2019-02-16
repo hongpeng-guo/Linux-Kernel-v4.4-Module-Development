@@ -1,0 +1,168 @@
+
+\documentclass[10pt]{article}
+
+\usepackage{algorithm,algorithmicx,algpseudocode}
+\usepackage{afterpage}
+\usepackage{amstext}   % provides \text{} command in math mode
+\usepackage{amsmath}
+\usepackage{amssymb}% http://ctan.org/pkg/amssymb
+\usepackage{balance}
+\usepackage{caption}
+\usepackage{color}
+\usepackage{comment}
+ \usepackage{enumitem}
+ \usepackage{enumerate}
+\usepackage{epic}
+\usepackage{epsf}
+\usepackage{epsfig}
+\usepackage[T1]{fontenc}% http://ctan.org/pkg/fontenc
+\usepackage{graphicx}% http://ctan.org/pkg/graphicx
+\usepackage[pdftex,colorlinks=true,citecolor=black,filecolor=black,%
+            linkcolor=black,urlcolor=black,draft]{hyperref}
+\usepackage{latexsym}
+\usepackage{listings}
+\usepackage{makecell}% http://ctan.org/pkg/makecell
+\usepackage{multirow}
+\usepackage{multicol}
+\usepackage{pifont}% http://ctan.org/pkg/pifont
+\usepackage{soul}
+\usepackage[subrefformat=parens,labelformat=parens]{subfig}
+\usepackage{textcomp}
+\usepackage{tabularx}
+\usepackage{times}
+\usepackage{url}
+\usepackage[table]{xcolor}
+\usepackage{xspace}    % sticks a sane space after a command
+\usepackage{spverbatim}
+\usepackage{setspace}
+\onehalfspacing
+
+\lstset{
+basicstyle=\small\ttfamily,
+columns=flexible,
+breaklines=true
+}
+
+
+\title{CS 423 Operating Systems Design\\
+MP0: The Kernel Development Environment}
+\author{}
+\date{}
+\begin{document}
+\maketitle
+
+
+\section{Goals and Overview}
+
+\begin{itemize}[leftmargin=*]
+\item In this MP you will learn download, compile, and install your own kernel.\footnote{The instructions in this document are adapted from the guide at \url{https://wiki.ubuntu.com/KernelTeam/GitKernelBuild}}
+\item You will configure your development environment for upcoming projects
+\item You will familiarize yourself with the layout of the kernel's code 
+\item The kernel source code will be a helpful reference for upcoming MPs
+\end{itemize}
+
+\section{Developmental Setup}
+
+Each student will be assigned one VM with two 2.3GHZ CPUs and 4 GB RAM running Ubuntu 16.04. You will use this VM to complete all of the MPs in CS423. You will be able to log in using your university netid and password. We will review in class how to use vSphere (\url{https://vc.cs.illinois.edu/vsphere-client}) to power on/off your VMs. Please ONLY power on/off your own group's VM.
+
+You will work on the provided Virtual Machine  and you will develop kernel modules for the Linux Kernel 4.4.0-109 which is used by the OS in this Virtual Machine. You will have full access and control of your Virtual Machine, you will be able to turn it on, and off using the VMWare Server Console. 
+
+Start configuring your Virtual Machine for kernel module development by downloading the Linux Kernel headers and standard development tools:\\
+
+\noindent
+{\footnotesize
+{\tt sudo apt-get install git build-essential kernel-package fakeroot libncurses5-dev libssl-dev ccache libelf-dev}\\
+}
+
+Kernel compilation can take quite awhile. Moreover, as you are SSHing into the machine, a network connectivity problem or errant closed window could cancel the build. Therefore  it would be wise to learn how to use the {\tt screen} tool:\\
+
+\noindent
+{\footnotesize
+{\tt sudo apt-get install screen}\\
+}
+
+Now, let's download the kernel source git repository:\\
+
+\noindent
+{\footnotesize
+{\tt git clone \\git://git.kernel.org/pub/scm/linux/kernel/git/stable/linux-stable.git}\\
+}
+
+You can check to see which version of the kernel this is by opening the {\tt Makefile} and reading the {\tt VERSION}, {\tt PATCHLEVEL}, and {\tt SUBLEVEL} values at the top of the file. Running a newer version of the kernel than Ubuntu 16.04 was designed for might work without issue (feel free to try it), but it could also cause problems as significant changes sometime occur within the kernel. To be safe, let's checkout the appropriate version of the kernel source:\\
+
+\noindent
+{\footnotesize
+{\tt cd linux}\\ \noindent
+{\tt git checkout v4.4}\\
+}
+
+If you return to the {\tt Makefile} now, you should see that the {\tt VERSION} and {\tt PATCH\-LEVEL} have changed. 
+{\it Make sure it has, because all the grading will be done using kernel 4.4.0}. 
+Finally, feel free to install in your VM any additional utilities or text editors (e.g., Emacs, Vim) that you find useful.
+
+\section{Kernel Compilation}
+
+To begin building the kernel, copy the kernel config file from the existing system into your the base of kernel source:\\
+
+\noindent
+{\footnotesize
+{\tt cp /boot/config-`uname -r` .config}\\
+}
+
+Running {\tt make oldconfig} will then apply the existing system's configuration to this kernel tree. However, in our case there are still many new config options for which there is no existing config file setting. You can press Enter when prompted to accept the default option for each setting. However, to save time you can auto-accept the defaults by running:\\
+
+\noindent
+{\footnotesize
+{\tt yes '' | make oldconfig}\\
+}
+
+Clean the kernel source directory with\\
+
+\noindent
+{\footnotesize
+{\tt make clean}\\
+}
+
+We can now compile the kernel. Best practice when compiling the kernel is to parallelize the build, one thread per available core plus one. The below {\tt make} command automatically detects the available CPUs on your VM to do this. Also, to simplify installation, the command will build the linux kernel image and linux header files into {\tt .deb} files.\\
+
+\noindent
+{\footnotesize
+{\tt make -j~} \`{\tt getconf \_NPROCESSORS\_ONLN}\`~ {\tt deb-pkg LOCALVERSION=-}{\it NETID}\\
+}
+
+\noindent
+{\bf IMPORTANT: CHANGE THE ABOVE LINE TO REPLACE ``NETID'' WITH YOUR NETID.} The {\tt LOCALVERSION} field is appended to the name of your kernel. \\
+
+When this command finally returns, you will have  new {\tt deb} files one directory up from the kernel source tree. To install the files, run the following commands:\\
+
+\noindent
+{\footnotesize
+{\tt sudo dpkg -i linux-image-4.4.0-*\_4.4.0-*\_amd64.deb} \\
+{\tt sudo dpkg -i linux-headers-4.4.0-*\_4.4.0-*\_amd64.deb}\\
+}
+
+\section{Booting into Your New Kernel}
+
+Now it's time to boot into your newly built kernel. To do so, first you will need to edit your VM's {\tt grub} settings so that the bootloader is visible during the startup sequence. As root, open {\tt /etc/default/grub} with your preferred text editor, then comment out the {\tt GRUB\_HIDDEN\_TIMEOUT} and {\tt GRUB\_HIDDEN\_TIMEOUT\_QUIET} lines using a {\tt \#}. Finally, to update your settings run:\\
+
+\noindent
+{\footnotesize
+{\tt sudo update-grub} \\
+}
+
+The kernel selection screen will now be visible by default for 10 seconds during the boot sequence. You can also set your custom kernel as the default grub entry, but it is recommended that you leave the kernel selection screen open on your VM in case you accidentally brick your custom kernel.\\
+
+The easiest way to boot into your new kernel will be through opening up a VNC console to the VM. To do so, head to \url{https://vc.cs.illinois.edu/vsphere-client}, enter in your university NetID and password, and select your VM from the ``Navigator'' pane. At the top of the central pane that opens, right next to your VM's name, is a button to open up a VM console in a separate window.
+
+Once open, reboot your VM with {\tt sudo reboot} from either the console or from an SSH terminal. In the console, during the boot sequence you will see a Text UI screen titled ``GNU GRUB version 2.02 $\dots$'' appear. First, press one of the arrow keys on your keyboard to stop the bootloader from timing out and selecting the default boot option. Then, select ``*Advanced options for Ubuntu''. Select your custom kernel from the list ({\it Note: Do *NOT* the one that says ``Recovery Mode''}). Verify that everything is working properly by SSHing back into the VM.
+
+
+\section{Submission Instructions}
+
+This is an easy one -- simply leave the custom kernel running on your VM until you are instructed to do otherwise. The teaching staff will connect to you machine and verify that your custom kernel is running.
+
+\section{Running your own local VM}
+
+Because we have had problems in the past with the availability of the Engr-IT cloud, it is recommended that you set up a kernel develop environment on your personal machine (e.g., with VirtualBox) by repeating these instructions. Always remember that grading will be based on the Engr-IT cloud, to test your code there before submitting future assignments.
+
+\end{document}
