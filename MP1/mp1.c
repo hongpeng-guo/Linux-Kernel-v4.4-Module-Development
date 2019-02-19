@@ -9,6 +9,8 @@
 #include <linux/spinlock.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
+#include <linux/jiffies.h>
+#include <linux/workqueue.h>
 #include "mp1_given.h"
 
 MODULE_LICENSE("GPL");
@@ -30,7 +32,29 @@ struct Process{
 };
 struct Process p_list;
 
+struct timer_list mp1_timer;
+struct workqueue_struct *mp1_wq;
+struct work_struct *mp1_w;
 spinlock_t lock;
+
+static void mp1_work_handler(struct work_struct * work){
+    struct Process *itr, *tmp;
+    spin_lock(& lock);
+    list_for_each_entry_safe(itr, tmp, &p_list.list, list){
+        if (get_cpu_use(itr->pid, & itr->time) == -1){
+            list_del(& itr->list);
+            kfree(itr);
+        }
+    }
+    spin_unlock(& lock);
+    mod_timer(&mp1_timer, jiffies + msecs_to_jiffies(5000));
+    return;
+}
+
+static void mp1_time_handler(struct timer_list* timer){
+    queue_work(mp1_wq, (struct work_struct *) mp1_w);
+    return;    
+}
 
 static ssize_t mp1_read(struct file *file, char __user *buffer, size_t count, loff_t *data)
 {
@@ -67,6 +91,7 @@ static ssize_t mp1_write(struct file *file, const char __user *buffer, size_t co
     //implementation goes here
 	struct Process *new_proc;
 	char * buf = (char *) kmalloc(count, GFP_KERNEL);	
+    static bool timer_start = false;
 
     copy_from_user(buf, buffer, count);
 	new_proc = (struct Process *) kmalloc(sizeof(struct Process), GFP_KERNEL);
@@ -83,6 +108,13 @@ static ssize_t mp1_write(struct file *file, const char __user *buffer, size_t co
 	spin_lock(& lock);
 	list_add_tail(&new_proc->list, &p_list.list);
 	spin_unlock(& lock); 
+
+    if (!timer_start){
+        timer_setup(&mp1_timer, mp1_time_handler, 0);
+        mod_timer(&mp1_timer, jiffies);
+        timer_start = true;
+    }
+    
 	return count;
 }
 
@@ -105,6 +137,16 @@ int __init mp1_init(void)
 	INIT_LIST_HEAD(&p_list.list);
     spin_lock_init(& lock);
 
+    mp1_wq = create_workqueue("mp1_queue");
+    if (mp1_wq){
+        mp1_w = (struct work_struct *)kmalloc(sizeof(struct work_struct), GFP_KERNEL);
+        if(mp1_w){
+            INIT_WORK((struct work_struct *) mp1_w, mp1_work_handler);
+        }else{
+            printk(KERN_ERR "Work not allocated correctly\n");
+        }
+    }
+
     #ifdef DEBUG 
     printk(KERN_ALERT "MP1 MODULE LOADED\n");
     #endif
@@ -114,17 +156,31 @@ int __init mp1_init(void)
 // mp1_exit - Called when module is unloaded
 void __exit mp1_exit(void)
 {
+    struct Process *itr, *tmp; 
+    
     #ifdef DEBUG
     printk(KERN_ALERT "MP1 MODULE UNLOADING\n");
     #endif
 
-    // Insert your code here ...
+    list_for_each_entry_safe(itr, tmp, &p_list.list, list){
+        list_del(& itr->list);
+        kfree(itr);
+    }
+
+    flush_workqueue(mp1_wq);
+    destroy_workqueue(mp1_wq);
+
+    del_timer(&mp1_timer);
+    kfree(mp1_w);
+    
     remove_proc_entry("status", proc_dir);
     remove_proc_entry("mp1", NULL);
    
     #ifdef DEBUG
     printk(KERN_ALERT "MP1 MODULE UNLOADED\n");
     #endif
+
+    return;
 }
 
 // Register init and exit funtions
