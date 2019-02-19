@@ -38,6 +38,17 @@ static ssize_t mp1_read(struct file *file, char __user *buffer, size_t count, lo
     int copied;
     char * buf;
     struct Process *itr;
+    
+    static int finished = 0;
+    if (finished){
+        finished = 0;
+        return 0;
+    }
+    finished = 1;
+
+    #ifdef DEBUG
+    printk(KERN_ALERT "Enter mp1_read\n");
+    #endif
     buf = (char *) kmalloc(count, GFP_KERNEL);
     copied = 0;
     spin_lock(& lock); 
@@ -55,19 +66,24 @@ static ssize_t mp1_write(struct file *file, const char __user *buffer, size_t co
 {
     //implementation goes here
 	struct Process *new_proc;
-	char * buf = (char *) kmalloc(count, GFP_KERNEL);
+	char * buf = (char *) kmalloc(count, GFP_KERNEL);	
 
-	copy_from_user(buf, buffer, count);
+    copy_from_user(buf, buffer, count);
 	new_proc = (struct Process *) kmalloc(sizeof(struct Process), GFP_KERNEL);
 	sscanf(buf, "%u", &(new_proc->pid));
 	kfree(buf);
 	new_proc->time = 0;
+    INIT_LIST_HEAD(& new_proc->list);
 	
+    #ifdef DEBUG
+    printk(KERN_ALERT "Enter mp1_write\n");
+    printk(KERN_ALERT "%u\n", new_proc->pid);
+    #endif
+
 	spin_lock(& lock);
 	list_add_tail(&new_proc->list, &p_list.list);
 	spin_unlock(& lock); 
-    
-	return 0;
+	return count;
 }
 
 static const struct file_operations mp1_file = {
@@ -87,6 +103,7 @@ int __init mp1_init(void)
     proc_entry = proc_create(FILENAME, 0666, proc_dir, & mp1_file); 
    
 	INIT_LIST_HEAD(&p_list.list);
+    spin_lock_init(& lock);
 
     #ifdef DEBUG 
     printk(KERN_ALERT "MP1 MODULE LOADED\n");
