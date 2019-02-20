@@ -11,6 +11,7 @@
 #include <linux/uaccess.h>
 #include <linux/jiffies.h>
 #include <linux/workqueue.h>
+#include <linux/timer.h>
 #include "mp1_given.h"
 
 MODULE_LICENSE("GPL");
@@ -37,7 +38,7 @@ struct workqueue_struct *mp1_wq;
 struct work_struct *mp1_w;
 spinlock_t lock;
 
-static void mp1_time_handler(struct timer_list* timer){
+static void mp1_time_handler(unsigned long data){
     struct Process *itr, *tmp;
     spin_lock(& lock);
     list_for_each_entry_safe(itr, tmp, &p_list.list, list){
@@ -47,7 +48,7 @@ static void mp1_time_handler(struct timer_list* timer){
         }
     }
     spin_unlock(& lock);
-    mod_timer(timer, jiffies + msecs_to_jiffies(5000));
+    mod_timer(&mp1_timer, jiffies + msecs_to_jiffies(5000));
     #ifdef DEBUG
     printk(KERN_ALERT "timer called at %u\n", jiffies_to_msecs(jiffies));
     #endif
@@ -113,8 +114,8 @@ static ssize_t mp1_write(struct file *file, const char __user *buffer, size_t co
 	spin_unlock(& lock); 
 
     if (!timer_start){
-        timer_setup(&mp1_timer, mp1_time_handler, 0);
-        mod_timer(&mp1_timer, jiffies);
+        setup_timer(&mp1_timer, mp1_time_handler, 0);
+        mod_timer(&mp1_timer, jiffies + msecs_to_jiffies(0));
         timer_start = true;
     }
     
