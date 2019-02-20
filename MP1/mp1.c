@@ -23,6 +23,9 @@ MODULE_DESCRIPTION("CS-423 MP1");
 #define DIRECTORY "mp1"
 #define BUFFER_MAX 2048
 
+/**
+* Declare global variables.
+**/
 static struct proc_dir_entry *proc_dir;
 static struct proc_dir_entry *proc_entry;
 
@@ -38,8 +41,13 @@ struct workqueue_struct *mp1_wq;
 struct work_struct *mp1_w;
 spinlock_t lock;
 
+/**
+* The timer interrupt handler, which is the top half
+* interrupt. check cpu use every 5 seconds.
+**/
 static void mp1_time_handler(unsigned long data){
     struct Process *itr, *tmp;
+    // Entering critical section.
     spin_lock(& lock);
     list_for_each_entry_safe(itr, tmp, &p_list.list, list){
         if (get_cpu_use(itr->pid, & itr->time) == -1){
@@ -48,6 +56,7 @@ static void mp1_time_handler(unsigned long data){
         }
     }
     spin_unlock(& lock);
+    // Reidentify the timer expire time.
     mod_timer(&mp1_timer, jiffies + msecs_to_jiffies(5000));
     #ifdef DEBUG
     printk(KERN_ALERT "timer called at %u\n", jiffies_to_msecs(jiffies));
@@ -55,18 +64,25 @@ static void mp1_time_handler(unsigned long data){
     return;
 }
 
+/**
+* The work interrupt handler.
+**/
 static void mp1_work_handler(struct work_struct * work){
     queue_work(mp1_wq, (struct work_struct *) work);
     return;    
 }
 
+/**
+* Read the content of /proc/mp1/status, which traverses the kernel
+* linked list to obtain all process and cpu info.
+**/
 static ssize_t mp1_read(struct file *file, char __user *buffer, size_t count, loff_t *data)
 {
-    //implementation goes here
     int copied;
     char * buf;
     struct Process *itr;
     
+    // Bool logical help identify the whether mp1_read should stop. 
     static int finished = 0;
     if (finished){
         finished = 0;
@@ -79,8 +95,8 @@ static ssize_t mp1_read(struct file *file, char __user *buffer, size_t count, lo
     #endif
     buf = (char *) kmalloc(count, GFP_KERNEL);
     copied = 0;
+    // Entering the critical section.
     spin_lock(& lock); 
-    //put something into the buf, update copied
     list_for_each_entry(itr, &p_list.list, list){
         copied += sprintf(buf+copied, "%u: %ld\n", itr->pid, itr->time);        
     }
@@ -95,8 +111,10 @@ static ssize_t mp1_write(struct file *file, const char __user *buffer, size_t co
     //implementation goes here
 	struct Process *new_proc;
 	char * buf = (char *) kmalloc(count, GFP_KERNEL);	
+    //start timer at first time write to /proc/mp1/status.
     static bool timer_start = false;
-
+    
+    //creation of new Process instance upon work arrive.
     copy_from_user(buf, buffer, count);
 	new_proc = (struct Process *) kmalloc(sizeof(struct Process), GFP_KERNEL);
 	sscanf(buf, "%u", &(new_proc->pid));
@@ -109,6 +127,7 @@ static ssize_t mp1_write(struct file *file, const char __user *buffer, size_t co
     printk(KERN_ALERT "%u\n", new_proc->pid);
     #endif
 
+    //adding new process to list tail.
 	spin_lock(& lock);
 	list_add_tail(&new_proc->list, &p_list.list);
 	spin_unlock(& lock); 
@@ -134,7 +153,7 @@ int __init mp1_init(void)
     #ifdef DEBUG
     printk(KERN_ALERT "MP1 MODULE LOADING\n");
     #endif
-    // Insert your code here ...
+    // /proc file system initialization.
     proc_dir = proc_mkdir(DIRECTORY, NULL);
     proc_entry = proc_create(FILENAME, 0666, proc_dir, & mp1_file); 
    
@@ -165,18 +184,22 @@ void __exit mp1_exit(void)
     #ifdef DEBUG
     printk(KERN_ALERT "MP1 MODULE UNLOADING\n");
     #endif
-
+    
+    // free the kernel list memory.
     list_for_each_entry_safe(itr, tmp, &p_list.list, list){
         list_del(& itr->list);
         kfree(itr);
     }
-
+    
+    //free workqueue
     flush_workqueue(mp1_wq);
     destroy_workqueue(mp1_wq);
 
+    //free timer.
     del_timer(&mp1_timer);
     kfree(mp1_w);
     
+    // remove proc file system.
     remove_proc_entry("status", proc_dir);
     remove_proc_entry("mp1", NULL);
    

@@ -29,15 +29,16 @@ int main(int argc, char* argv[])
         if (child == -1){
             printf ("Fork Fail!\n");
         }else if (child == 0){
-            //printf ("I am the children, %u\n", getpid());
+            // printf ("I am the children, %u\n", getpid());
             sprintf(command, "echo %u > /proc/mp1/status", getpid());
             system(command);
             calculation(getpid());
             memset(command, 0, 100);
             sprintf(command, "cat /proc/mp1/status");
             system(command);
+            exit(0);
         }else{
-            waitpid(child, &status, 0);
+            wait(NULL);
         }
     }
 	return 0;

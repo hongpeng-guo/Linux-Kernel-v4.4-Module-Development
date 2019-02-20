@@ -13,6 +13,7 @@ obj-m:= mp1.o
 
 modules:
 	$(MAKE) -C $(KERNEL_SRC) M=$(SUBDIR) modules
+	mv mp1.ko hg5_MP1.ko
 
 app: userapp.c userapp.h
 	$(GCC) -o userapp userapp.c
