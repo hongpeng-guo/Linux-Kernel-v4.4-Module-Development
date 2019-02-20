@@ -14,7 +14,7 @@
 #include "mp1_given.h"
 
 MODULE_LICENSE("GPL");
-MODULE_AUTHOR("Group_ID");
+MODULE_AUTHOR("20");
 MODULE_DESCRIPTION("CS-423 MP1");
 
 #define DEBUG 1
@@ -37,7 +37,7 @@ struct workqueue_struct *mp1_wq;
 struct work_struct *mp1_w;
 spinlock_t lock;
 
-static void mp1_work_handler(struct work_struct * work){
+static void mp1_time_handler(struct timer_list* timer){
     struct Process *itr, *tmp;
     spin_lock(& lock);
     list_for_each_entry_safe(itr, tmp, &p_list.list, list){
@@ -47,12 +47,15 @@ static void mp1_work_handler(struct work_struct * work){
         }
     }
     spin_unlock(& lock);
-    mod_timer(&mp1_timer, jiffies + msecs_to_jiffies(5000));
+    mod_timer(timer, jiffies + msecs_to_jiffies(5000));
+    #ifdef DEBUG
+    printk(KERN_ALERT "timer called at %u\n", jiffies_to_msecs(jiffies));
+    #endif
     return;
 }
 
-static void mp1_time_handler(struct timer_list* timer){
-    queue_work(mp1_wq, (struct work_struct *) mp1_w);
+static void mp1_work_handler(struct work_struct * work){
+    queue_work(mp1_wq, (struct work_struct *) work);
     return;    
 }
 
