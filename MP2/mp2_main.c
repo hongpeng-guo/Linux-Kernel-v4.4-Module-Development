@@ -69,12 +69,14 @@ int dispaching_thread_function(void* data){
                 sparam.sched_priority = 0;
                 ct->state = READY;
                 sched_setscheduler(ct->linux_task, SCHED_NORMAL, &sparam);
-            }    
+            }
+            if(ct == NULL || ct->period > highest->period){    
                 wake_up_process(highest->linux_task);
                 highest->state = RUNNING;
                 sparam.sched_priority = 99;
                 sched_setscheduler(highest->linux_task, SCHED_FIFO, &sparam);
                 ct = highest;
+            }
         }
         mutex_unlock(& ct_lock);
     }
