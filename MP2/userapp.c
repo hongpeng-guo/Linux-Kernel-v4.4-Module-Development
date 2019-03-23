@@ -1,38 +1,37 @@
-/*
-    reference:
-        https://github.com/calvinmwhu/CS423/blob/master/mp2/mp2_user_app.c
-*/
-
 #include "userapp.h"
-
-/*
-    argv[1] -> period
-    argv[2] -> computation time
-    argv[3] -> number of period
-*/
 
 int main(int argc, char* argv[])
 {
+    /*
+    The argument validation process.
+    For every single period, we define our userapp to run around 90 msec, the user
+    can just input 100 as the second argument to use this app.
+    */
     if (argc != 4) {
         printf("Invalid arguments. \n usage: %s <period> <proc_time> <num_of_period>\n",argv[0]);
+        printf(" The processing time for this application, aka, arg[2] is 100ms\n");
         return 1;
     }
 
     int i;
-
+    
+    /*
+    The input parsing, str to int process.
+    */
     int num_of_period = atoi(argv[3]);
     int period = atoi(argv[1]);
     int proc_time = atoi(argv[2]);
 
+    /*
+    For read content from /proc/mp2/status
+    */
     char buf[BUFFERLEN];
     FILE *fd;
     char *tmp;
     char filename[] = MP2_PATH;
     int len;
 
-    // when fact_iteration = 10
-    // the computation time is about 200ms for my computer
-    int fact_iteration = 10;
+    // Define variables to retrive the actual time elapse.
     unsigned int pid = getpid();
     struct timeval t0, start, end;
 
@@ -58,7 +57,7 @@ int main(int argc, char* argv[])
     printf("pid\tperiod\tproc_t\tactu_proc_t\tstart_time\tend_time\n");
     for (i = 0; i < num_of_period; i ++) {
         gettimeofday(&start, NULL);
-        do_job(fact_iteration);
+        do_job();
         gettimeofday(&end, NULL);
 
         print_result(t0,start,end,pid,period,proc_time);
@@ -66,7 +65,8 @@ int main(int argc, char* argv[])
         yield_process(pid);
     }
 
-    unregister_process(pid);
+    // echo unregister to finish scheduling of this process
+    deregister_process(pid);
 
     return 0;
 }

@@ -20,6 +20,7 @@ static struct task_struct* dispaching_thread;
 struct mp2_task_struct* ct = NULL;
 struct mutex tl_lock = __MUTEX_INITIALIZER(tl_lock);
 struct mutex ct_lock = __MUTEX_INITIALIZER(ct_lock);
+// the spinlock is only used in time handller.
 spinlock_t lock;
 
 /*
@@ -58,6 +59,7 @@ int dispaching_thread_function(void* data){
         
         highest = Task_get_highest(& tl);
         mutex_lock_interruptible(& ct_lock);
+        // if no task is READY. Simply preempt current running task.
         if (highest == NULL){
             if (ct != NULL){
                 sparam.sched_priority = 0;
@@ -65,11 +67,16 @@ int dispaching_thread_function(void* data){
                 sched_setscheduler(ct->linux_task, SCHED_NORMAL, &sparam);
             }
         }else{
+            // if current running task is lower in priority than the selected
+            // highest READY task. Put the current running task to READY and change 
+            // current running task.
             if (ct != NULL && ct->period > highest->period){
                 sparam.sched_priority = 0;
                 ct->state = READY;
                 sched_setscheduler(ct->linux_task, SCHED_NORMAL, &sparam);
             }
+            // if follow the above preempt condition or no current running task
+            // run the selected highest READY task.
             if(ct == NULL || ct->period > highest->period){    
                 wake_up_process(highest->linux_task);
                 highest->state = RUNNING;
@@ -87,7 +94,8 @@ int dispaching_thread_function(void* data){
 
 /*
 Read the content of /proc/mp2/status, which traverses the kernel
-linked list to obtain all the application info.
+linked list to obtain all the application info. The logic is similar
+to MP1 read function.
 */
 static ssize_t mp2_read(struct file *file, char __user *buffer, size_t count, loff_t *data)
 {
@@ -108,7 +116,6 @@ static ssize_t mp2_read(struct file *file, char __user *buffer, size_t count, lo
     #endif
     buf = (char *) kmalloc(count, GFP_KERNEL);
     copied = 0;
-    // Entering the critical section.
     mutex_lock_interruptible(& tl_lock); 
     list_for_each_entry(itr, &tl.list, list){
         copied += sprintf(buf+copied, "%u: %llu, %llu, %u\n", itr->pid, itr->period, itr->proc_time, itr->state);        
@@ -141,6 +148,8 @@ static ssize_t mp2_write(struct file *file, const char __user *buffer, size_t co
                 printk(KERN_ALERT "invilade inputs\n");
             if(sscanf(strsep(& buf, ","), "%llu", & proc_time) != 1)
                 printk(KERN_ALERT "invilade inputs\n");
+            // entering Task_register(), which is defined in scheduler.c
+            // and declared in scheduler.h
             Task_register(&tl, pid, period, proc_time, mp2_task_cache); 
             break;
         case 'Y':
@@ -149,6 +158,8 @@ static ssize_t mp2_write(struct file *file, const char __user *buffer, size_t co
             if(sscanf(strsep(& buf, ","), "%u", & pid) != 1)
                 printk(KERN_ALERT "invilade inputs\n");
             printk(KERN_ALERT "%u\n", pid);
+            // entering Task_yeild(), which is defined in scheduler.c
+            // and declared in scheduler.h
             Task_yeild(&tl, pid, dispaching_thread);
             break; 
         case 'D':
@@ -156,6 +167,8 @@ static ssize_t mp2_write(struct file *file, const char __user *buffer, size_t co
                 printk(KERN_ALERT "invilade inputs\n");
             if(sscanf(strsep(& buf, ","), "%u", & pid) != 1)
                 printk(KERN_ALERT "invilade inputs\n");
+            // entering Task_deregister(), which is defined in scheduler.c
+            // and declared in scheduler.h
             Task_deregister(&tl, pid, mp2_task_cache, dispaching_thread); 
             break;    
     }
@@ -179,6 +192,7 @@ int __init mp2_init(void)
     proc_entry = proc_create(FILENAME, 0666, proc_dir, & mp2_file); 
     printk(KERN_ALERT "MP2 MODULE LOADING\n");
    
+    // global variables initialization.
 	Task_init(&tl);
     spin_lock_init(& lock);
     mp2_task_cache = KMEM_CACHE(mp2_task_struct,SLAB_PANIC);
