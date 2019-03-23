@@ -52,7 +52,8 @@ int Task_register(struct mp2_task_struct* tl, uint32_t pid, uint64_t period, uin
 }
 
 int Task_yeild(struct mp2_task_struct* tl, uint32_t pid, struct task_struct* dispaching_thread){
-    struct mp2_task_struct  *itr, *yeild_task = NULL;
+    struct mp2_task_struct *itr, *yeild_task = NULL;
+    printk(KERN_ALERT "Enter yeild\n");
     mutex_lock_interruptible(& tl_lock);
     list_for_each_entry(itr, &tl->list, list){
         if (itr->pid == pid){yeild_task = itr;}
@@ -62,6 +63,7 @@ int Task_yeild(struct mp2_task_struct* tl, uint32_t pid, struct task_struct* dis
         printk(KERN_ALERT "yeild task does not exist\n");
         return -1;
     }
+    printk(KERN_ALERT "yeild CK1\n");
     mutex_lock_interruptible(& tl_lock);
     if(yeild_task->next_ddl == 0){
         yeild_task->next_ddl = jiffies + msecs_to_jiffies(yeild_task -> period);
@@ -72,6 +74,7 @@ int Task_yeild(struct mp2_task_struct* tl, uint32_t pid, struct task_struct* dis
             return -1;
         }
     }
+    printk(KERN_ALERT "yeild CK2\n");
     mod_timer(&yeild_task->timer, yeild_task->next_ddl);
     yeild_task ->state = SLEEPING; 
     set_task_state(yeild_task->linux_task,TASK_UNINTERRUPTIBLE);
@@ -81,6 +84,7 @@ int Task_yeild(struct mp2_task_struct* tl, uint32_t pid, struct task_struct* dis
     mutex_unlock(& ct_lock);
     mutex_unlock(& tl_lock);
     wake_up_process(dispaching_thread);
+    printk(KERN_ALERT "yeild finished\n");
     return 0;
 }
 

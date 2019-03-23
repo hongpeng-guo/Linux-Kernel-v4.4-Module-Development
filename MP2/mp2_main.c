@@ -29,6 +29,7 @@ of a task expires.
 void mp2_timer_callback(unsigned long data){
     struct mp2_task_struct *itr;
     // Entering critical section.
+    printk(KERN_ALERT "Enter timer callback\n");
     spin_lock(& lock);
     list_for_each_entry(itr, & tl.list, list){
         if (itr->pid == data){
@@ -37,6 +38,7 @@ void mp2_timer_callback(unsigned long data){
     }
     spin_unlock(& lock);
     wake_up_process(dispaching_thread); 
+    printk(KERN_ALERT "Leave timer callback\n");
     return;
 }
 
@@ -49,6 +51,11 @@ int dispaching_thread_function(void* data){
     struct sched_param sparam;
 
     while(!kthread_should_stop()){
+        set_current_state(TASK_INTERRUPTIBLE);
+        schedule();
+        
+        printk(KERN_ALERT "Enter dispaching thread\n");
+        
         highest = Task_get_highest(& tl);
         mutex_lock_interruptible(& ct_lock);
         if (highest == NULL){
@@ -62,15 +69,16 @@ int dispaching_thread_function(void* data){
                 sparam.sched_priority = 0;
                 ct->state = READY;
                 sched_setscheduler(ct->linux_task, SCHED_NORMAL, &sparam);
-            }
-            wake_up_process(highest->linux_task);
-            highest->state = RUNNING;
-            sparam.sched_priority = 99;
-            sched_setscheduler(highest->linux_task, SCHED_FIFO, &sparam);
-            ct = highest;
+            }    
+                wake_up_process(highest->linux_task);
+                highest->state = RUNNING;
+                sparam.sched_priority = 99;
+                sched_setscheduler(highest->linux_task, SCHED_FIFO, &sparam);
+                ct = highest;
         }
         mutex_unlock(& ct_lock);
     }
+    printk(KERN_ALERT "Leave Dispaching thread\n");
     return 0;
 }
 
@@ -138,6 +146,7 @@ static ssize_t mp2_write(struct file *file, const char __user *buffer, size_t co
                 printk(KERN_ALERT "invilade inputs\n");
             if(sscanf(strsep(& buf, ","), "%u", & pid) != 1)
                 printk(KERN_ALERT "invilade inputs\n");
+            printk(KERN_ALERT "%u\n", pid);
             Task_yeild(&tl, pid, dispaching_thread);
             break; 
         case 'D':
