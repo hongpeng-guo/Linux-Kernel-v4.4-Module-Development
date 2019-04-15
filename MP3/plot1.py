@@ -35,14 +35,14 @@ class Plotter(object):
         j = 1
         k = 1
         for i in range(data.shape[0]):
-            if int(data[i][0]) == 3429:
+            if int(data[i][0]) == 3428:
                 t1.append(0.05 * j)
-                cpu1.append(data[i][3]/100)
+                cpu1.append(data[i][3])
                 minf1.append(minf1[-1] + data[i][1])
                 j += 1
             else:
                 t2.append(0.05 * k)
-                cpu2.append(data[i][3]/100)
+                cpu2.append(data[i][3])
                 minf2.append(minf2[-1] + data[i][1])
                 k += 1
 
@@ -59,6 +59,18 @@ class Plotter(object):
         plt.savefig('cpu1.png', format = 'png')
         plt.show()
 
+
+        fig, ax = plt.subplots()
+
+        line1 = ax.plot(t1, minf1, 'r-')
+        line2 = ax.plot(t2, minf2, 'b-')
+
+        ax.set_ylabel('Cumulated Minor Page Faults')
+        ax.set_xlabel('Time (sec)')
+        ax.legend((line1[0], line2[0]), ('1024M, 10000 Random', '1024M, 50000 Random'))
+
+        plt.savefig('minf1.png', format = 'png')
+        plt.show()
 
 
 if __name__ == "__main__":
