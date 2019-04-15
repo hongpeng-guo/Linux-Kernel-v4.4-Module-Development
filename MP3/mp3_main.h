@@ -16,6 +16,8 @@
 #include <linux/kthread.h>
 #include <linux/pid.h>
 #include <linux/sched.h>
+#include <linux/mm.h>
+#include <linux/cdev.h>
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("20");

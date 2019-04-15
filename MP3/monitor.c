@@ -8,6 +8,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <stdlib.h>
+#include <stdint.h>
 
 #define NPAGES (128)   // The size of profiler buffer (Unit: memory page)
 #define BUFD_MAX 48000 // The max number of profiled samples stored in the profiler buffer
@@ -50,7 +51,7 @@ int main(int argc, char* argv[])
   long *buf;
   int index = 0;
   int i;
-
+  
   // Open the char device and mmap()
   buf = buf_init("node");
   if(!buf)

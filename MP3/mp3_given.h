@@ -2,7 +2,7 @@
 #define __MP3_GIVEN_INCLUDE__
 
 #include <linux/pid.h>
-
+#include <linux/sched.h>
 struct task_struct* find_task_by_pid(unsigned int nr)
 {
     struct task_struct* task = NULL;
@@ -18,8 +18,8 @@ struct task_struct* find_task_by_pid(unsigned int nr)
 // PROCESS CPU TIME IN JIFFIES AND MAJOR AND MINOR PAGE FAULT COUNTS
 // SINCE THE LAST INVOCATION OF THE FUNCTION FOR THE SPECIFIED PID.
 // OTHERWISE IT RETURNS -1
-int get_cpu_use(int pid, uint32_t *min_flt, uint32_t *maj_flt,
-         uint32_t *utime, uint32_t *stime)
+int get_cpu_use(int pid, unsigned long *min_flt, unsigned long *maj_flt,
+         unsigned long *utime, unsigned long *stime)
 {
         int ret = -1;
         struct task_struct* task;

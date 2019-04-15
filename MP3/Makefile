@@ -10,13 +10,13 @@ RM:=rm
 all: clean modules app
 
 obj-m:= mp3.o
-mp2-objs:= mp2_main.o profiler.o
+mp3-objs:= mp3_main.o profiler.o
 
 modules:
 	$(MAKE) -C $(KERNEL_SRC) M=$(SUBDIR) modules
 #	mv mp2.ko hg5_MP2.ko
 	
-app: work.c monitor.h
+app: work.c monitor.c
 	$(GCC) -o work work.c
 	$(GCC) -o monitor monitor.c
 
