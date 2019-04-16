@@ -13,8 +13,8 @@ obj-m:= mp3.o
 mp3-objs:= mp3_main.o profiler.o
 
 modules:
-	$(MAKE) -C $(KERNEL_SRC) M=$(SUBDIR) modules
-#	mv mp2.ko hg5_MP2.ko
+	$(MAKE) -C $(KERNEL_SRC) M=$(SUBDIR) modules	
+	mv mp3.ko hg5_MP3.ko
 	
 app: work.c monitor.c
 	$(GCC) -o work work.c
