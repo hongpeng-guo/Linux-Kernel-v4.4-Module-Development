@@ -130,13 +130,13 @@ static int mp4_cred_prepare(struct cred *new, const struct cred *old,
 
     old_msec = old->security;
 
-	if (!old_tsec) {
+	if (!old_msec) {
 		mp4_cred_alloc_blank(new,gfp);
 		return 0;
     }
        
-	msec = kmemdup(old_tsec, sizeof(struct mp4_security), gfp);
-    if (!tsec)
+	msec = kmemdup(old_msec, sizeof(struct mp4_security), gfp);
+    if (!msec)
         return -ENOMEM;
 
     new->security = msec;
@@ -254,9 +254,10 @@ static int mp4_inode_permission(struct inode *inode, int mask)
     struct dentry *d_dentry;
     char *pathname, *buf;
     int buflen = 256;
-    int skip;
+    int skip, res;
+    struct mp4_security* cs = current_security();
 
-    int ssid = curent_cred() -> security -> mp4_flags;
+    int ssid = cs -> mp4_flags;
     int osid = get_inode_sid(inode);
 
     d_dentry = d_find_alias(inode);
