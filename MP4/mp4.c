@@ -4,10 +4,16 @@
 #include <linux/security.h>
 #include <linux/kernel.h>
 #include <linux/err.h>
+#include <linux/fs.h>
 #include <linux/cred.h>
 #include <linux/dcache.h>
 #include <linux/binfmts.h>
+//#include <uapi/asm-generic/errno.h>
 #include "mp4_given.h"
+
+
+
+char * tmp;
 
 /**
  * get_inode_sid - Get the inode mp4 security label id
@@ -19,34 +25,23 @@
  */
 static int get_inode_sid(struct inode *inode)
 {
-	/*
-	 * Add your code here
-	 * ...
-    */
-    int vallen, sid;
-    char* val;
+	char * val;
+	int vallen, sid;
+	struct dentry * b_dentry;
+	b_dentry = d_find_alias(inode);
+	if (!b_dentry) {
+		return 0;
+		}
 
-	struct dentry *d_dentry = NULL;
-    d_dentry = d_find_alias(inode);
-    if (! d_dentry){
-        return 0;
-    } 
-    vallen = inode -> i_op -> getxattr(d_dentry, XATTR_NAME_MP4, NULL, 0);
-	if (vallen < 0){
-		pr_info("cred cxt error!\n");
-		dput(d_dentry);
-		return vallen;
+	// getxattr needs to be checked!
+	if (!(inode -> i_op -> getxattr)) {
+		dput(b_dentry);
+		return -1;
 	}
-	val = kmalloc(vallen+1, GFP_KERNEL);
-	vallen = inode -> i_op -> getxattr(d_dentry, XATTR_NAME_MP4, val, vallen);
-	if (vallen < 0){
-		pr_info("cred cxt error!\n");
-		dput(d_dentry);
-		kfree(val);
-		return vallen;
-	}
+    val = kmalloc(256, GFP_KERNEL);
+	vallen = inode -> i_op -> getxattr(b_dentry, XATTR_NAME_MP4, val, 255);
 	sid = __cred_ctx_to_sid(val);
-	dput(d_dentry);
+	dput(b_dentry);
 	kfree(val);
 	
 	return sid;
@@ -61,10 +56,6 @@ static int get_inode_sid(struct inode *inode)
  */
 static int mp4_bprm_set_creds(struct linux_binprm *bprm)
 {
-	/*
-	 * Add your code here
-	 * ...
-	 */
     int sid;
     struct mp4_security *msec = bprm -> cred -> security;
     struct inode *inode = file_inode(bprm->file);
@@ -83,16 +74,15 @@ static int mp4_bprm_set_creds(struct linux_binprm *bprm)
  */
 static int mp4_cred_alloc_blank(struct cred *cred, gfp_t gfp)
 {
-	/*
-	 * Add your code here
-	 * ...
-	 */
-    struct mp4_security *msec;
-    msec = (struct mp4_security*) kmalloc(sizeof(struct mp4_security), gfp);
-    if (!msec)
-        return -ENOMEM;
-    msec -> mp4_flags = MP4_NO_ACCESS;
-    cred -> security = msec;
+	struct mp4_security * msec;
+	if(printk_ratelimit())
+		pr_info("ALLOCATION STARTS.\n");
+	msec = (struct mp4_security *) kmalloc(sizeof(struct mp4_security), gfp);
+	if (!msec)
+		return -ENOMEM;
+	msec -> mp4_flags = MP4_NO_ACCESS;
+	cred -> security = msec;
+	
 	return 0;
 }
 
@@ -105,13 +95,9 @@ static int mp4_cred_alloc_blank(struct cred *cred, gfp_t gfp)
  */
 static void mp4_cred_free(struct cred *cred)
 {
-	/*
-	 * Add your code here
-	 * ...
-	 */
-    struct mp4_security *msec = cred -> security;
-    cred -> security = NULL;
-    if (msec) kfree(msec);
+	struct mp4_security *msec = cred -> security;
+	cred -> security = NULL;
+	if (msec) kfree(msec);
 }
 
 /**
@@ -124,7 +110,7 @@ static void mp4_cred_free(struct cred *cred)
  */
 static int mp4_cred_prepare(struct cred *new, const struct cred *old,
 			    gfp_t gfp)
-{       
+{
     const struct mp4_security *old_msec;
     struct mp4_security *msec;
 
@@ -133,14 +119,15 @@ static int mp4_cred_prepare(struct cred *new, const struct cred *old,
 	if (!old_msec) {
 		mp4_cred_alloc_blank(new,gfp);
 		return 0;
-    }
+	}
        
 	msec = kmemdup(old_msec, sizeof(struct mp4_security), gfp);
     if (!msec)
-        return -ENOMEM;
+            return -ENOMEM;
 
     new->security = msec;
-	return 0;
+    return 0;
+
 }
 
 /**
@@ -160,31 +147,29 @@ static int mp4_inode_init_security(struct inode *inode, struct inode *dir,
 				   const struct qstr *qstr,
 				   const char **name, void **value, size_t *len)
 {
-	/*
-	 * Add your code here
-	 * ...
-	 */
-	int proc_sid;
+	int current_level;
 	struct mp4_security * cs = current_security();
-	proc_sid = cs -> mp4_flags;
-
-    if (proc_sid != MP4_TARGET_SID)
-        return -EOPNOTSUPP;
-    
-    * name = XATTR_MP4_SUFFIX;
- 
-	if (S_ISREG(inode->i_mode)) {
-		*value = kstrdup("read-write", GFP_NOFS);
-		*len = strlen("read-write");
+	if(printk_ratelimit())
+		pr_info("INITIALIZATION STARTS.\n");
+	current_level = cs -> mp4_flags;
+	if (name)
+		* name = XATTR_MP4_SUFFIX;
+	if (value && len) {
+		if ( current_level == MP4_TARGET_SID ) {
+			if (S_ISREG(inode->i_mode)) {
+				*value = kstrdup("read-write", GFP_NOFS);
+				*len = strlen("read-write");
+				}
+			else if (S_ISDIR(inode->i_mode)) {
+				*value = kstrdup("dir-write", GFP_NOFS);
+				*len = strlen("dir-write");
+				}
+			if (*value == NULL)
+				return -ENOMEM;
+			}
+		return 0;
 	}
-    else if (S_ISDIR(inode->i_mode)) {
-		*value = kstrdup("dir-write", GFP_NOFS);
-		*len = strlen("dir-write");
-	}
-
-	if (*value == NULL)
-		return -ENOMEM;
-	return 0;
+	return -EOPNOTSUPP;
 }
 
 /**
@@ -194,44 +179,42 @@ static int mp4_inode_init_security(struct inode *inode, struct inode *dir,
  * @osid: the object's security id
  * @mask: the operation mask
  *
- * returns 0 is access granter, -EACCES otherwise
+ * returns 0 is access granter, -EACCESS otherwise
  *
  */
 static int mp4_has_permission(int ssid, int osid, int mask)
 {
-	/*
-	 * Add your code here
-	 * ...
-	 */
-	int o_mask = 0;
-
+	unsigned int o_mask = 0;
     if ( ssid == MP4_TARGET_SID ) {
         if (osid == MP4_READ_OBJ)
-		    o_mask = MAY_READ | MAY_OPEN | MAY_ACCESS;
+		    o_mask = MAY_READ;
         else if (osid == MP4_READ_WRITE)
-		    o_mask = MAY_READ | MAY_WRITE | MAY_APPEND | MAY_OPEN | MAY_ACCESS;
+		    o_mask = MAY_READ | MAY_WRITE;
         else if (osid == MP4_WRITE_OBJ)
-		    o_mask = MAY_WRITE | MAY_APPEND | MAY_OPEN | MAY_ACCESS;
+		    o_mask = MAY_WRITE;
         else if (osid == MP4_EXEC_OBJ)
-		    o_mask = MAY_READ | MAY_EXEC | MAY_OPEN | MAY_ACCESS;
+		    o_mask = MAY_READ | MAY_EXEC;
     	else if (osid == MP4_READ_DIR)
-		    o_mask = MAY_READ | MAY_EXEC | MAY_ACCESS | MAY_CHDIR | MAY_OPEN;
+		    o_mask = MAY_READ | MAY_EXEC;
     	else if (osid == MP4_RW_DIR)
-		    o_mask = MAY_READ | MAY_EXEC | MAY_ACCESS | MAY_CHDIR | MAY_WRITE | MAY_APPEND | MAY_OPEN;
-    } else {
+		    o_mask = MAY_READ | MAY_EXEC | MAY_WRITE;
+    }else {
         if (osid == MP4_READ_OBJ || osid == MP4_READ_WRITE || osid == MP4_WRITE_OBJ)
-		    o_mask = MAY_READ | MAY_OPEN | MAY_ACCESS;
+		    o_mask = MAY_READ;
         else if (osid == MP4_NO_ACCESS)
-		    o_mask = MAY_ACCESS;
+		    o_mask = MAY_READ | MAY_WRITE | MAY_EXEC;
         else if (osid == MP4_EXEC_OBJ)
-		    o_mask = MAY_READ | MAY_EXEC | MAY_OPEN | MAY_ACCESS;
+		    o_mask = MAY_READ | MAY_EXEC;
     	else if (osid == MP4_READ_DIR || osid == MP4_RW_DIR)
-		return 0;
+		    o_mask = MAY_READ | MAY_EXEC;
     }
-    if (mask > o_mask) {
-	    return -EACCES;
-	}
-	return 0;
+    if ((mask | o_mask) == o_mask){ 
+        return 0;
+    }
+    if(printk_ratelimit()){
+        pr_info("%08x, %08x\n", mask, o_mask);
+    }
+    return -EACCES;
 }
 
 /**
@@ -242,36 +225,50 @@ static int mp4_has_permission(int ssid, int osid, int mask)
  *
  * This is the important access check hook
  *
- * returns 0 if access is granted, -EACCES otherwise
+ * returns 0 if access is granted, -EACCESS otherwise
  *
  */
 static int mp4_inode_permission(struct inode *inode, int mask)
 {
-	/*
-	 * Add your code here
-	 * ...
-	 */
-    struct dentry *d_dentry;
-    char *pathname, *buf;
-    int buflen = 256;
-    int skip, res;
-    struct mp4_security* cs = current_security();
+	struct dentry * b_dentry;
+	char *res, *buf;
+	int buflen = 256;
+	int ssid, osid;
+	int perm, should_skip;
+	struct mp4_security *cs = current_security();
+	buf = (char *) kmalloc(buflen, GFP_KERNEL);
+	b_dentry = d_find_alias(inode);
+	if (!b_dentry)
+		return 0;
+	res = dentry_path(b_dentry, buf, buflen-1);
+	if (IS_ERR(res)) {
+		dput(b_dentry);
+		return 0;
+	}
+	should_skip = mp4_should_skip_path(res);
 
-    int ssid = cs -> mp4_flags;
-    int osid = get_inode_sid(inode);
+	if (should_skip) {
+		dput(b_dentry);
+		return 0;
+	}
+	ssid = cs -> mp4_flags;
+	osid = get_inode_sid(inode);
 
-    d_dentry = d_find_alias(inode);
-    buf = (char*) kmalloc(buflen, GFP_KERNEL);
-    pathname = dentry_path(d_dentry, buf, buflen-1);
+	if (osid<0) {
+		dput(b_dentry);
+		return 0;
+	}
 
-    skip = mp4_should_skip_path(pathname);
-    kfree(pathname);
-    dput(d_dentry);
+	mask = mask & (MAY_READ | MAY_EXEC | MAY_WRITE);
 
-    if (skip) return 0;
-    
-    res = mp4_has_permission(ssid, osid, mask);
-    return res;    
+    perm = mp4_has_permission(ssid, osid, mask);
+	if (perm<0) {
+		if(printk_ratelimit())
+			pr_info("%s ACCESS NOT ALLOWED\n", res);
+		}
+	dput(b_dentry);
+	return perm;
+	//return 0;
 }
 
 
@@ -305,7 +302,8 @@ static __init int mp4_init(void)
 	if (!security_module_enable("mp4"))
 		return 0;
 
-	pr_info("mp4 LSM initializing..");
+	if(printk_ratelimit())
+		pr_info("mp4 LSM initializing..");
 
 	/*
 	 * Register the mp4 hooks with lsm

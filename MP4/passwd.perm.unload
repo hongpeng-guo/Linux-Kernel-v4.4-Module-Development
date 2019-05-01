@@ -1,0 +1,3 @@
+sudo setfattr -x security.mp4 /usr/bin/passwd
+sudo setfattr -x security.mp4 /etc/shadow
+sudo setfattr -x security.mp4 /etc/.pwd.lock
