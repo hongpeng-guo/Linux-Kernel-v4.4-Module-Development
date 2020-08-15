@@ -1,7 +1,7 @@
 # Linux Kernel(v4.4) Module Development
 
 The Machine Problems of UIUC CS423 sp19
-- <strong>MP2:</strong> An introduction and walk-through of basic concepts in Linux Kernel programming.
+- <strong>MP1:</strong> An introduction and walk-through of basic concepts in Linux Kernel programming.
 
 - <strong>MP2:</strong> Implemented real-time scheduler by utilizing kernel libs like Kthread, Scheduler, Slab, List to create two-half workflow and applied admission control and Rate Monotonic policy to achieve real-time scheduling.
 
