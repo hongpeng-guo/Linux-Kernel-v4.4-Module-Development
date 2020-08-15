@@ -1,3 +1,7 @@
+# MP2: Rate-Monotonic CPU Scheduling
+
+## Usage
+
 This kernel scheduler consists of four major files.
 
 "mp2_main.h", "mp2_main.c", "scheduler.h", "scheduler.c"
